@@ -1,0 +1,260 @@
+{
+  "schema_version": "1.0",
+  "name": "StockMarketAnalysisAgent",
+  "description": "An agent providing real-time stock market data, ML-based price predictions, historical plotting, price logging, and report generation capabilities.",
+  "base_url": "http://127.0.0.1:8000",
+  "contact_info": {
+    "name": "Your Name/Organization",
+    "email": "your.email@example.com",
+    "url": "https://your-portfolio-or-org.com"
+  },
+  "capabilities": [
+    {
+      "id": "stock_analysis_tools",
+      "name": "Stock Analysis Tools",
+      "description": "Tools for fetching live stock prices, performing ML-based future price predictions, plotting historical trends, logging prices, and exporting reports.",
+      "type": "rest_api",
+      "api_spec": {
+        "openapi_version": "3.0.0",
+        "info": {
+          "title": "Stock Market Tool API",
+          "version": "1.0.0",
+          "description": "API for interacting with stock market analysis tools."
+        },
+        "servers": [
+          {
+            "url": "http://127.0.0.1:8000",
+            "description": "Local FastAPI Server"
+          }
+        ],
+        "paths": {
+          "/tools/get_current_price": {
+            "post": {
+              "summary": "Fetches the current live price for a given stock symbol.",
+              "operationId": "get_current_price",
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "symbol": {
+                          "type": "string",
+                          "description": "The stock ticker symbol (e.g., AAPL, GOOGL)."
+                        }
+                      },
+                      "required": ["symbol"]
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Successful response with current price.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "symbol": {"type": "string"},
+                          "price": {"type": "number"}
+                        }
+                      }
+                    }
+                  }
+                },
+                "404": {
+                  "description": "Symbol not found or data error."
+                },
+                "500": {
+                  "description": "Internal server error."
+                }
+              }
+            }
+          },
+          "/tools/predict_price": {
+            "post": {
+              "summary": "Predicts the next-day stock price using a simple ML model.",
+              "operationId": "predict_price",
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "symbol": {
+                          "type": "string",
+                          "description": "The stock ticker symbol (e.g., AAPL, GOOGL)."
+                        }
+                      },
+                      "required": ["symbol"]
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Successful response with ML-based predicted price.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "symbol": {"type": "string"},
+                          "current_price": {"type": "number"},
+                          "predicted_price": {"type": "number"},
+                          "note": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                },
+                "404": {
+                  "description": "Symbol not found or prediction error."
+                },
+                "500": {
+                  "description": "Internal server error."
+                }
+              }
+            }
+          },
+          "/tools/plot_history": {
+            "post":
+            {
+              "summary": "Generates and saves a 30-day historical price trend graph.",
+              "operationId": "plot_history",
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "symbol": {
+                          "type": "string",
+                          "description": "The stock ticker symbol (e.g., AAPL, GOOGL)."
+                        }
+                      },
+                      "required": ["symbol"]
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Successful response with plot file path.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "symbol": {"type": "string"},
+                          "message": {"type": "string"},
+                          "plot_path": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                },
+                "404": {
+                  "description": "Symbol not found or plotting error."
+                },
+                "500": {
+                  "description": "Internal server error."
+                }
+              }
+            }
+          },
+          "/tools/log_price": {
+            "post": {
+              "summary": "Logs the current price of a stock to a CSV file.",
+              "operationId": "log_price",
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "symbol": {
+                          "type": "string",
+                          "description": "The stock ticker symbol (e.g., AAPL, GOOGL)."
+                        }
+                      },
+                      "required": ["symbol"]
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Successful response with log file path.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "symbol": {"type": "string"},
+                          "message": {"type": "string"},
+                          "log_path": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                },
+                "500": {
+                  "description": "Internal server error during logging."
+                }
+              }
+            }
+          },
+          "/tools/export_report": {
+            "post": {
+              "summary": "Generates a stock report including current and ML-based predicted prices, and saves it to a CSV file.",
+              "operationId": "export_report",
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "symbol": {
+                          "type": "string",
+                          "description": "The stock ticker symbol (e.g., AAPL, GOOGL)."
+                        }
+                      },
+                      "required": ["symbol"]
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Successful response with report file path.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "symbol": {"type": "string"},
+                          "message": {"type": "string"},
+                          "report_path": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                },
+                "500": {
+                  "description": "Internal server error during report generation."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
