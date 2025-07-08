@@ -6,7 +6,7 @@ This project features a **real-time, MCP-compatible stock market analysis tool**
 ## ✨ Overview
 
 The application is structured into a FastAPI backend that exposes various stock analysis tools as API endpoints, and a Streamlit frontend that provides an interactive dashboard to consume these tools. It is designed with Multi-Agent Communication Protocol (MCP) compatibility in mind, using an `agent.json` file to describe its capabilities.
-![Uploading image.png…]()
+
 
 
 ## 📁 Project Directory Structure
