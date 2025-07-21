@@ -1,99 +1,164 @@
+Stock Market Analysis using MCP
+A comprehensive stock analysis tool that provides real-time data, a 5-day price forecast using a custom-trained LSTM model, and qualitative stock profile summaries. The project is built with a decoupled architecture, using FastAPI for the backend API and Streamlit for the interactive web dashboard.
 
-# 📈 Stock Market Analysis Tool
+🌟 Features
+This dashboard provides a multi-faceted view of any given stock ticker:
 
-This project features a **real-time, MCP-compatible stock market analysis tool** with a **FastAPI** backend and a **Streamlit** frontend. It allows users to fetch live stock prices, get simple ML-based predictions, view historical plots, log price data, and export reports.
+📄 Stock Profile: Get a qualitative "gist" of a stock, including company business summary, key metrics like Market Cap and P/E Ratio, and the latest analyst recommendation.
 
-## ✨ Overview
+📈 5-Day Price Forecast: Utilizes a custom-trained LSTM (Long Short-Term Memory) neural network to predict the closing price for the next five trading days.
 
-The application is structured into a FastAPI backend that exposes various stock analysis tools as API endpoints, and a Streamlit frontend that provides an interactive dashboard to consume these tools. It is designed with Multi-Agent Communication Protocol (MCP) compatibility in mind, using an `agent.json` file to describe its capabilities.
+📊 Historical Charting: Instantly generate and view a 30-day historical price chart to analyze recent trends.
 
+📋 Data Export: Log the current price to a persistent CSV file or generate a full report with the 5-day forecast.
 
+🤖 MCP Implementation: Fully compatible with the Model-Context-Protocol. The system exposes its tools via a discoverable agents.json manifest and a FastAPI backend, allowing other AI models to use its capabilities.
 
-## 📁 Project Directory Structure
+🏗️ Architecture
+The project uses a modern, decoupled architecture to separate concerns:
 
-```
+FastAPI Backend (main.py):
 
-STOCK\_MARKET\_ANALYSIS/
-├── **pycache**/             \# Python cache files (auto-generated)
-├── assets/                  \# Static assets (e.g., dashboard\_banner.png)
-├── logs/                    \# Logged stock price data (e.g., stock\_prices.csv)
-├── plots/                   \# Saved historical plots (e.g., AAPL\_history.png)
-├── reports/                 \# Exported reports (e.g., AAPL\_report.csv)
-├── tools/                   \# Backend tool implementations
-│   ├── **pycache**/
-│   ├── export\_report.py
-│   ├── fetch\_price.py
-│   ├── log\_price.py
-│   ├── plot\_history.py
-│   └── predict\_price.py
-├── venv/                    \# Python virtual environment (local)
-├── agent.json               \# MCP metadata file
-├── app.py                   \# Streamlit frontend UI
-├── main.py                  \# FastAPI backend entry point
-├── requirements.txt         \# Python dependencies
-└── README.md                \# Project documentation
+A high-performance backend server that exposes all functionality through a REST API.
 
-````
+It handles the core logic, including fetching data from Yahoo Finance, running the ML model for predictions, and generating plots/reports.
 
-## 🚀 Setup and Running Locally
+All functionalities are organized into modular "tools" within the tools/ directory.
 
-This project runs entirely on your local machine and is **not deployed**.
+Streamlit Frontend (app.py):
 
-### 1. Prerequisites
+A user-friendly and interactive web dashboard.
 
-Ensure you have Python 3.8+ installed.
+It acts as a client that communicates with the FastAPI backend to fetch and display data.
 
-### 2. Clone the Repository
+This separation allows the backend logic to be independent of the user interface.
 
-```bash
-git clone <repository_url_here>
-cd STOCK_MARKET_ANALYSIS
-````
+🤖 MCP Implementation
+This project is designed to be fully compatible with the Model-Context-Protocol (MCP), allowing its tools to be programmatically discovered and used by other AI models or automated systems. Here’s how the implementation works:
 
-### 3\. Set Up Virtual Environment
+The Manifest (agents.json): This file serves as the public "menu" of the agent's capabilities. It follows the OpenAPI 3.0 specification to define:
 
-```bash
+What tools are available: Each function (like get_current_price, predict_price, etc.) is listed as an API path.
+
+What each tool does: A human-readable summary explains the purpose of each tool.
+
+How to use each tool: It specifies the HTTP method (POST), the required input (requestBody), and the expected output (responses).
+
+The Engine (FastAPI Backend): The FastAPI server acts as the live execution engine. It listens for incoming API requests that match the paths defined in agents.json. When a request is received (e.g., a POST request to /tools/predict_price with a stock symbol), the server:
+
+Validates the incoming data.
+
+Calls the corresponding Python function from the tools/ directory.
+
+Executes the function's logic (e.g., runs the ML model).
+
+Returns the result as a standard JSON response.
+
+By separating the definition of the tools (agents.json) from their execution (FastAPI), any MCP-aware system can intelligently interact with this stock analysis agent without needing to know its internal code.
+
+🚀 Setup and Installation
+Follow these steps to get the project running on your local machine.
+
+Prerequisites
+Python 3.10 or higher.
+
+pip and venv for package management.
+
+Step 1: Set Up the Project
+First, ensure all the project files are in a single directory.
+
+Step 2: Create a Virtual Environment
+It is highly recommended to use a virtual environment to manage dependencies.
+
+# Navigate to your project directory
+
+cd path/to/stock_market_analysis
+
+# Create a virtual environment
+
 python -m venv venv
-# On Windows: .\venv\Scripts\activate
-# On macOS/Linux: source venv/bin/activate
-```
 
-### 4\. Install Dependencies
+# Activate the virtual environment
 
-```bash
+# On Windows:
+
+.\venv\Scripts\Activate
+
+# On macOS/Linux:
+
+source venv/bin/activate
+
+Step 3: Install Dependencies
+Install all the required packages using the requirements.txt file.
+
 pip install -r requirements.txt
-```
 
-### 5\. Run the Backend (FastAPI)
+Step 4: Train the LSTM Model
+Before you can get predictions, you must train the machine learning model. This script fetches the last 10 years of data for a stock (AAPL by default) and trains the LSTM model, saving the artifacts in the models/ directory.
 
-Open your first terminal, activate the virtual environment, and run:
+python train_model.py
 
-```bash
+Note: To train the model for a different stock (e.g., MSFT), simply edit the last line of train_model.py to train_and_save_model(symbol="MSFT").
+
+Step 5: Run the Application
+The application requires two separate terminals to run the backend and frontend simultaneously.
+
+Terminal 1: Start the FastAPI Backend
+
 uvicorn main:app --reload
-```
 
-The FastAPI server will run on `http://127.0.0.1:8000`.
+You should see a confirmation that the Uvicorn server is running on http://127.0.0.1:8000.
 
-### 6\. Run the Frontend (Streamlit)
+Terminal 2: Start the Streamlit Frontend
 
-Open a **second terminal**, activate the virtual environment, and run:
-
-```bash
 streamlit run app.py
-```
 
-The Streamlit UI will open in your browser (usually `http://localhost:8501`).
+This will automatically open a new tab in your browser pointing to the dashboard.
 
-## ⏭️ Future Enhancements
+💻 How to Use
+Enter a Stock Symbol: Use the text input at the top of the dashboard to enter a ticker symbol (e.g., GOOGL, MSFT, TSLA).
 
-  * Integration with other MCP agents.
-  * Implementation of more advanced ML models for prediction.
-  * Real-time data streaming capabilities.
-  * User authentication and database integration.
-  * Interactive plotting with libraries like Plotly.
-  * Deployment to cloud platforms.
+Navigate Tabs:
 
-<!-- end list -->
+📄 Stock Profile: Click "Get Stock Profile" to see a summary of the company.
 
-```
-```
+📈 Prediction: Get the latest price or generate a new 5-day forecast.
+
+📊 History: Generate the 30-day price chart.
+
+📋 Reports: Log the current price or export a full report to a CSV file.
+
+📁 Project Structure
+stock_market_analysis/
+│
+├── models/ # Stores the trained ML model and scaler
+│ ├── lstm_stock_predictor.keras
+│ ├── model_metadata.json
+│ └── scaler.pkl
+│
+├── plots/ # Saved historical price charts
+│ └── AAPL_history.png
+│
+├── reports/ # Saved CSV reports
+│ └── full_stock_reports.csv
+│
+├── tools/ # Modular functions (tools) for the API
+│ ├── **init**.py
+│ ├── export_report.py
+│ ├── fetch_price.py
+│ ├── get_stock_summary.py
+│ ├── log_price.py
+│ ├── plot_history.py
+│ └── predict_price.py
+│
+├── venv/ # Virtual environment directory
+│
+├── agents.json # MCP agent definition file
+├── app.py # The Streamlit frontend application
+├── main.py # The FastAPI backend server
+├── README.md # This file
+├── requirements.txt # Project dependencies
+└── train_model.py # Script to train the LSTM model
+
+📜 Disclaimer
+This project is for educational purposes only and should not be considered financial advice. Stock market predictions are inherently uncertain, and the forecasts generated by the LSTM model are not guaranteed to be accurate. Always conduct your own research before making any investment decisions.

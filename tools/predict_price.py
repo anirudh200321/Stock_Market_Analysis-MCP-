@@ -1,85 +1,100 @@
+# tools/predict_price.py
+import numpy as np
 import pandas as pd
 import yfinance as yf
-from sklearn.linear_model import LinearRegression
-import numpy as np # For handling potential NaN values
+from tensorflow.keras.models import load_model
+import joblib
+import os
+import json
+import logging
 
-from tools.fetch_price import get_current_price # Still useful for current price check
+# --- CONFIGURATION ---
+MODELS_DIR = "models"
+MODEL_NAME = "lstm_stock_predictor.keras"
+SCALER_NAME = "scaler.pkl"
+METADATA_NAME = "model_metadata.json"
 
-def predict_price(symbol: str):
-    """
-    Predicts the next-day stock price for a given symbol using a simple linear regression model.
-    The model is trained on recent historical closing prices.
-    This is a simplified ML model and NOT for financial advice.
+logger = logging.getLogger(__name__)
 
-    Args:
-        symbol (str): The stock ticker symbol (e.g., "AAPL", "GOOGL").
+# --- LOAD MODEL AND ARTIFACTS ---
+try:
+    MODEL_PATH = os.path.join(MODELS_DIR, MODEL_NAME)
+    SCALER_PATH = os.path.join(MODELS_DIR, SCALER_NAME)
+    METADATA_PATH = os.path.join(MODELS_DIR, METADATA_NAME)
 
-    Returns:
-        dict: A dictionary containing the symbol, current price, predicted price,
-              and a note about the prediction method, or an error message if
-              data cannot be retrieved or prediction fails.
-    """
-    try:
-        # Fetch current price for context
-        current_data = get_current_price(symbol)
-        if "error" in current_data:
-            return {"error": f"Could not predict price for '{symbol}': {current_data['error']}"}
-        current_price = current_data["price"]
+    model = load_model(MODEL_PATH)
+    scaler = joblib.load(SCALER_PATH)
+    with open(METADATA_PATH, 'r') as f:
+        metadata = json.load(f)
+    
+    LOOKBACK = metadata['lookback']
+    N_STEPS_AHEAD = metadata['n_steps_ahead']
+    FEATURES_LIST = metadata['features_list']
+    CLOSE_COLUMN_INDEX = metadata['close_column_index']
+    
+    logger.info("Loaded LSTM model and artifacts successfully.")
+except Exception as e:
+    logger.error(f"Failed to load model or artifacts: {e}", exc_info=True)
+    model = None
 
-        # Fetch historical data for model training (e.g., last 60 days)
-        # We need enough data to create lagged features
-        stock = yf.Ticker(symbol)
-        hist = stock.history(period="60d") # Fetch 60 days of data
+def calculate_technical_indicators(df):
+    # This function must be identical to the one in train_model.py
+    df_calc = df.copy()
+    df_calc['SMA_10'] = df_calc['Close'].rolling(window=10).mean()
+    df_calc['SMA_20'] = df_calc['Close'].rolling(window=20).mean()
+    df_calc['EMA_10'] = df_calc['Close'].ewm(span=10, adjust=False).mean()
+    df_calc['EMA_20'] = df_calc['Close'].ewm(span=20, adjust=False).mean()
+    delta = df_calc['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    with np.errstate(divide='ignore', invalid='ignore'):
+        rs = gain / loss
+        df_calc['RSI'] = 100 - (100 / (1 + rs))
+    df_calc['RSI'].fillna(50, inplace=True)
+    exp1 = df_calc['Close'].ewm(span=12, adjust=False).mean()
+    exp2 = df_calc['Close'].ewm(span=26, adjust=False).mean()
+    df_calc['MACD'] = exp1 - exp2
+    df_calc['Signal_Line'] = df_calc['MACD'].ewm(span=9, adjust=False).mean()
+    df_calc['MACD_Hist'] = df_calc['MACD'] - df_calc['Signal_Line']
+    return df_calc
 
-        if hist.empty or len(hist) < 10: # Need at least some data points for features
-            return {"error": f"Insufficient historical data found for '{symbol}' to train model."}
+def predict_stock_price(symbol: str):
+    if model is None:
+        return {"error": "Model not loaded. Please train the model first by running train_model.py"}
 
-        # Prepare data for linear regression
-        # We'll use the last 5 days' closing prices to predict the next day's price
-        df = pd.DataFrame(hist['Close'])
-        
-        # Create lagged features
-        for i in range(1, 6): # Lag features: Close price from 1 to 5 days ago
-            df[f'Close_Lag_{i}'] = df['Close'].shift(i)
-        
-        # Drop rows with NaN values (due to shifting)
-        df.dropna(inplace=True)
+    period_to_fetch = f"{LOOKBACK + 60}d"
+    df_original = yf.download(symbol, period=period_to_fetch, interval="1d")
+    
+    # *** FIX: FLATTEN MULTI-LEVEL COLUMNS ***
+    if isinstance(df_original.columns, pd.MultiIndex):
+        df_original.columns = df_original.columns.droplevel(1)
 
-        if df.empty:
-            return {"error": f"Not enough valid data after feature engineering for '{symbol}' to train model."}
+    if df_original.empty or len(df_original) < LOOKBACK:
+        return {"error": f"Not enough historical data for '{symbol}' to make a prediction."}
 
-        # Define features (X) and target (y)
-        # X will be the lagged closing prices, y will be the current closing price (which we want to predict for the 'next' day)
-        features = [f'Close_Lag_{i}' for i in range(1, 6)]
-        X = df[features]
-        y = df['Close'] # The target is the 'current' close price for training
+    df_with_indicators = calculate_technical_indicators(df_original)
+    df_features = df_with_indicators[FEATURES_LIST].dropna()
 
-        # Ensure X and y have enough samples
-        if len(X) < 2: # Need at least 2 samples to train a linear model
-            return {"error": f"Not enough data points ({len(X)}) for '{symbol}' to train the ML model."}
+    if len(df_features) < LOOKBACK:
+        return {"error": f"Insufficient data for '{symbol}' after feature engineering. Need at least {LOOKBACK} days."}
 
-        # Train the Linear Regression model
-        model = LinearRegression()
-        model.fit(X, y)
+    last_sequence_raw = df_features.tail(LOOKBACK)
+    scaled_sequence = scaler.transform(last_sequence_raw)
+    X_pred = np.reshape(scaled_sequence, (1, LOOKBACK, len(FEATURES_LIST)))
+    
+    predicted_scaled_prices = model.predict(X_pred)[0]
 
-        # Predict the next day's price
-        # Use the most recent 'lagged' features available in the original historical data
-        # The last row of hist (before dropping NaNs) contains the most recent 5 days needed for prediction
-        last_known_prices = hist['Close'].iloc[-5:].values.reshape(1, -1) # Get last 5 closing prices
+    dummy_array = np.zeros((len(predicted_scaled_prices), len(FEATURES_LIST)))
+    dummy_array[:, CLOSE_COLUMN_INDEX] = predicted_scaled_prices
+    inversed_prices = scaler.inverse_transform(dummy_array)[:, CLOSE_COLUMN_INDEX]
+    
+    current_price = df_original['Close'].iloc[-1]
+    
+    predictions = {f"Day +{i+1}": round(float(price), 2) for i, price in enumerate(inversed_prices)}
 
-        # Ensure last_known_prices has 5 values
-        if len(last_known_prices[0]) != 5:
-            return {"error": f"Could not get enough recent historical data for '{symbol}' to make a prediction."}
-
-        predicted_price = model.predict(last_known_prices)[0]
-        predicted_price = round(predicted_price, 2)
-
-        return {
-            "symbol": symbol.upper(),
-            "current_price": current_price,
-            "predicted_price": predicted_price,
-            "note": "This prediction uses a simple linear regression model trained on historical data. It is a simulation and NOT for financial advice."
-        }
-
-    except Exception as e:
-        return {"error": f"An error occurred during ML-based price prediction for '{symbol}': {str(e)}"}
+    return {
+        "symbol": symbol.upper(),
+        "current_price": round(float(current_price), 2),
+        "predictions": predictions,
+        "note": f"LSTM forecast for the next {N_STEPS_AHEAD} trading days. Not financial advice."
+    }
